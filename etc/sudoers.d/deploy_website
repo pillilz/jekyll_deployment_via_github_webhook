@@ -1,0 +1,3 @@
+Cmnd_Alias DEPLOYCMD = \
+        /usr/local/sbin/deploy_website /var/www/example.com/jekyllrepo /var/www/example.com/root *
+%www-data       ALL=(deploy_website)NOPASSWD: DEPLOYCMD

@@ -1,0 +1,13 @@
+{
+  "expected_event": "push",
+  "deploy_cmd": "sudo --user=deploy_website --set-home /usr/local/sbin/deploy_website",
+  "repository_ref_map": {
+    "githubuser/jekyllrepo": {
+      "refs/heads/master": {
+        "html_symlink": "/var/www/example.com/root",
+        "repository_dir": "/var/www/example.com/jekyllrepo",
+        "signature_key": "<random key created with: openssl rand -base64 15>"
+      }
+    }
+  }
+}

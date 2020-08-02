@@ -1,0 +1,80 @@
+#!/usr/bin/python3
+
+# https://developer.github.com/webhooks/creating/
+# https://developer.github.com/webhooks/event-payloads/#push
+
+import os, sys, json, hmac
+
+# /etc/sudoers.d/www-data
+config_file = "/etc/deploywebhookgithub.json"
+config_required_keys = ["expected_event",  "deploy_cmd", "repository_ref_map"]
+config_repository_ref_map_required_keys = ["html_symlink", "repository_dir"]
+
+def getHeader(name):
+    var = "HTTP_" + name
+    if var in os.environ:
+        return os.environ[var]
+    return ""
+
+def printHTTP(status, body = None):
+    print("Status:", status)
+    print("Content-Type: text/plain\n")
+    if body:
+        print(body)
+
+def printHTTPExit(status, body = None):
+    print(status, body, file=sys.stderr)
+    printHTTP(status, body)
+    sys.exit(0)
+
+def signatureValid(key, body, header):
+    # https://developer.github.com/webhooks/securing/
+    # header = sha1=1cb3bf0f0def884c6eea9c59bce9959bebdcd053
+    algorithm, _, signature_header = header.partition('=')
+    signature_calculated = hmac.new(key.encode("utf-8"), body.encode("utf-8"), algorithm).hexdigest()
+    #print("signature_calc: ", signature_calculated, file=sys.stderr)
+    return hmac.compare_digest(signature_header, signature_calculated)
+
+def readConfig(config_file, config_required_keys):
+    with open(config_file, 'r') as f:
+        config = json.load(f)
+    if not all(key in config for key in config_required_keys):
+        printHTTPExit("400 Bad Request", f"The following keys need to be present in {config_file}: {config_required_keys}")
+    return config
+
+#for v in os.environ: print(v + ": " + os.environ[v])
+print(sys.argv[0], file=sys.stderr)
+
+config = readConfig(config_file, config_required_keys)
+
+event = getHeader("X_GITHUB_EVENT")
+if event != config["expected_event"]:
+    printHTTPExit("200 OK", "Ignoring " + event + " event")
+
+body = sys.stdin.read()
+req = json.loads(body)
+print(json.dumps(req), file=sys.stderr)
+
+repository_full_name = req["repository"]["full_name"]
+committer_email = req["head_commit"]["committer"]["email"]
+ref = req["ref"]
+if not repository_full_name in config["repository_ref_map"] or not ref in config["repository_ref_map"][repository_full_name]:
+    printHTTPExit("400 Bad Reuest", f"{repository_full_name} {ref} not found in configuration")
+repository = config["repository_ref_map"][repository_full_name][ref]
+if not all(key in repository for key in config_repository_ref_map_required_keys):
+    printHTTPExit("400 Bad Reuest", f"The following keys need to be defined for all repository_ref_map entries in {config_file}: {config_repository_ref_map_required_keys}")
+
+signature_key = repository.get("signature_key", None)
+signature_header = getHeader("X_HUB_SIGNATURE")
+print("X-Hub-Signature:", signature_header, file=sys.stderr)
+if signature_key and not signatureValid(signature_key, body, signature_header):
+    printHTTPExit("403 Forbidden", "Missing or invalid signature")
+
+printHTTP("200 Ok")
+
+print(end='', flush=True) # flush buffer before os.system
+
+# run in background and redirect to /dev/null, otherwise github will wait for the completion of the command and might run into a timeout after 10s
+command = [config["deploy_cmd"], repository["repository_dir"], repository["html_symlink"], committer_email, '>/dev/null &']
+print(sys.argv[0],"running:", ' '.join(command), file=sys.stderr)
+os.system(' '.join(command))
