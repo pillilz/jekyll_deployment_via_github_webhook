@@ -31,7 +31,7 @@ def signatureValid(key, body, header):
     # https://developer.github.com/webhooks/securing/
     # header = sha1=1cb3bf0f0def884c6eea9c59bce9959bebdcd053
     algorithm, _, signature_header = header.partition('=')
-    signature_calculated = hmac.new(key.encode("utf-8"), body.encode("utf-8"), algorithm).hexdigest()
+    signature_calculated = hmac.new(key.encode("utf-8"), body.encode("utf-8", "surrogateescape"), algorithm).hexdigest()
     #print("signature_calc: ", signature_calculated, file=sys.stderr)
     return hmac.compare_digest(signature_header, signature_calculated)
 
