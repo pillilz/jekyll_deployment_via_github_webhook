@@ -3,7 +3,7 @@
 # https://developer.github.com/webhooks/creating/
 # https://developer.github.com/webhooks/event-payloads/#push
 
-import os, sys, json, hmac
+import os, sys, re, json, hmac
 
 # /etc/sudoers.d/www-data
 config_file = "/etc/deploywebhookgithub.json"
@@ -55,8 +55,11 @@ body = sys.stdin.read()
 req = json.loads(body)
 print(json.dumps(req), file=sys.stderr)
 
-repository_full_name = req["repository"]["full_name"]
 committer_email = req["head_commit"]["committer"]["email"]
+if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', committer_email):
+    printHTTPExit("400 Bad Reuest", f"committer email {committer_email} invalid")
+
+repository_full_name = req["repository"]["full_name"]
 ref = req["ref"]
 if not repository_full_name in config["repository_ref_map"] or not ref in config["repository_ref_map"][repository_full_name]:
     printHTTPExit("400 Bad Reuest", f"{repository_full_name} {ref} not found in configuration")
