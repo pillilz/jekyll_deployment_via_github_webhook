@@ -1,31 +1,33 @@
-# Automatic Jekyll Website Depolyment via GitHub Webhook
+# Automatic Jekyll Website Deployment via GitHub Webhook
 
 ## Introduction
 
 The scenario of this deployment automation is a server hosting a Jekyll based
 website. The Jekyll sources are hosted on GitHub. Whenever the sources are
-updated on GitHub, the server builds the website with Jekyll and depoys it on
+updated on GitHub, the server builds the website with Jekyll and deploys it on
 the webserver.
+
+The setup described here is used for <https://www.cryptool.org/> (as of 2020-08 still testing).
 
 ## Process Overview
 
 The Jekyll sources of the website are hosted in a GitHub repository. The
-repository is configured to call a webhook on the webserver when it is updated
-via push. 
+repository is configured to call a webhook when it is updated via push. 
 
-The webhook is implemented as a Python script which reads a configuration file
-that contains the local repository and deployment target location for one or
-more repositories.
+The webhook is implemented on the webserver as a Python script which reads a
+configuration file that contains the local repository and deployment target
+location for one or more repositories.
 
-If the deployment request is valid, then a deployment command is called with
-the configured parameters. The script is implemented as a bash script. It
-performs the following steps:
+If the deployment request is valid, then a deployment script is called with the
+configured parameters and the committer's email address. The script is
+implemented as a bash script. It performs the following steps:
 
 1. Update the local repository via git pull
-2. Jekyll build the local repository and move the resulting html directory to a
+1. Jekyll build the local repository and moves the resulting HTML directory to a
    uniquely named directory next to the symlink
-3. Replace the symlink atomically with a link to new html directory
-4. Remove old html directory
+1. Replace the symlink atomically with a link to new HTML directory
+1. Remove old HTML directory
+1. Email the Jekyll logs and errors to the committer
 
 ## Webserver Configuration
 
@@ -77,7 +79,7 @@ Each repository has a separate entry for the branch that is pulled. The example 
 
 For each repository and branch the configuration contains three keys:
 
-1. `html_symlink`: The symlink pointing to html root directory of the website. The
+1. `html_symlink`: The symlink pointing to HTML root directory of the website. The
 symlink needs to be configured in the web server as the document root and will
 be replaced by `deploy_website` with a new directory containing the Jekyll
 output.
@@ -94,7 +96,7 @@ The virtual host of the website example.com needs to be configured with `html_sy
 DocumentRoot "/var/www/example.com/root"
 ```
 
-## Unix configuration
+## Unix Configuration
 
 ### Install Scripts
 
@@ -115,7 +117,7 @@ website read-only for the webserver.
 sudo adduser --system --ingroup www-data --disabled-password --gecos 'User for deploying websites via github webhook' deploy_website
 ```
 
-Create a SSH key without passphrase for user `deploy_website`.
+Create an SSH key without passphrase for user `deploy_website`.
 
 ```bash
 sudo --user=deploy_website --set-home ssh-keygen -t ed25519 -N ''
@@ -128,10 +130,10 @@ GitHub allows deployment keys to be used only for one repository. Deployment
 keys can be read-only. Another approach is to create a GitHub user for the
 deployment machine and invite this user to multiple repositories.
 
-Multiple keys can be create using different names (option `-f`). To enable
+Multiple keys can be created using different names (option `-f`). To enable
 automatic selection of the appropriate key, create a
 `~deploy_website/.ssh/config` with one or more aliases for github.com pointing
-the the respective key.
+to the respective key.
 
 ```
 Host githubalias
@@ -144,7 +146,7 @@ The alias then needs to be used instead of github.com when cloning the
 repository (see next section) and configured in
 `/etc/deploywebhookgithub.json`.
 
-### Sudo configuration
+### Sudo Configuration
 
 To allow the webserver to run the `deploy_website` script as the user with the
 same name, create a file [`/etc/sudoers.d/deploy_website`](etc/sudoers.d/deploy_website) with the following
@@ -156,7 +158,7 @@ Cmnd_Alias DEPLOYCMD = \
 %www-data       ALL=(deploy_website)NOPASSWD: DEPLOYCMD
 ```
 
-The paths of the local repository and html root must match the webhook
+The paths of the local repository and HTML root must match the webhook
 configuration in `/etc/deploywebhookgithub`.  Multiple paths can be configured
 as required. The wildcard at the end of the command is required for passing the
 email address.
@@ -205,9 +207,71 @@ In the GitHub repository `Settings` select `Webhooks` and `Add webhook` and ente
 
 `Secret:` random-value
 
-> **Note:** The secret needs ot match the value configured in `/etc/deploywebhookgithub.json`
+> **Note:** The secret needs to match the value configured in `/etc/deploywebhookgithub.json`
 
 `SSL verification: Enable SSL verifcation`
+
+## Security
+
+### Webserver
+
+This section analyzes the risk for the webserver.
+
+The webhook implementation increases the attack surface with it's REST endpoint
+to a limited degree.
+
+Calls to the REST endpoint are protected by a HMAC signature of the webhook
+payload. There signature does not protection against replay attacks, which is
+not particularly problematic, because apart from deploying the latest version
+of the website the only negative effect is some resource usage on web server.
+The replay risk can be further mitigated by protecting the endpoint with TLS,
+which is advisable in any case to protect the transmitted information.  A
+different signature  key can and should be used for each configured repository.
+
+The potentially untrusted information transmitted by the webhook is used to:
+
+1. Lookup parameters in the configuration file - **no risk**
+1. Verify the signature - **no risk**
+1. Determine the committer's email address - **low risk,** see below
+
+The deployment script is called with parameters looked up from the
+configuration file and the email committer's address. The former are trusted,
+the latter is protected by a regex from characters with a special meaning for
+the shell call to the deployment script. The residual risk of using the
+externally provided email address is sending an email with the Jekyll logs to a
+potentially manipulated email address.
+
+The deployment script should be called with sudo using a non-privileged user,
+as described above. This allows the website to be deployed read-only for the
+webserver and protects the SSH key from the webserver.
+
+The deployment script preforms the following actions:
+
+1. Update the local repository via git pull - **low risk**
+1. Jekyll build - **medium risk**, due to the fact that Jekyll performs complex
+   processing Liquid program code. A
+   [vulnerability](https://nvd.nist.gov/vuln/detail/CVE-2018-17567) in a
+   previous Jekyll version has resulted in arbitrary file reads. This risk is
+   somewhat mitigated by executing Jekyll with an non-privileged user and can
+   be further minimized by running it in a docker container.
+1. Replace the symlink atomically with a link to new HTML directory - **no risk**
+1. Remove old HTML directory - **no risk**
+1. Email the Jekyll logs - **low risk**, see above
+
+In summary there the execution Jekyll poses a limited risk if further
+vulnerabilities are found and the GitHub repository contains malicious input.
+
+### Website
+
+The integrity of the website depends on the protection of the GitHub
+repository. Anybody who can push to the repository or subvert GitHub security
+controls can change the website.
+
+The SSH key used by the webserver to pull from the repository poses an
+additional risk, which can be minimized by using a readonly deployment key as
+described above.
+
+In addition the integrity of the website depends on the integrity of the webserver.
 
 ## Troubleshooting
 
