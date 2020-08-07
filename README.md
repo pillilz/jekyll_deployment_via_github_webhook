@@ -106,7 +106,7 @@ sudo install --owner=root --group=root deploywebhookgithub deploy_website /usr/l
 
 ### Deployment User
 
-The deployment script `deploy_website` is run as user `deploy_website` via sudo
+The deployment script `deploy_website` is run as user `deploy_website` via `sudo`
 from `deploywebhookgithub`. The user can be configured in
 `/etc/deploywebhookgithub.json` with `deploy_cmd`.
 
@@ -241,15 +241,15 @@ the shell call to the deployment script. The residual risk of using the
 externally provided email address is sending an email with the Jekyll logs to a
 potentially manipulated email address.
 
-The deployment script should be called with sudo using a non-privileged user,
+The deployment script should be called with `sudo` using a non-privileged user,
 as described above. This allows the website to be deployed read-only for the
 webserver and protects the SSH key from the webserver.
 
-The deployment script preforms the following actions:
+The deployment script performs the following actions:
 
 1. Update the local repository via git pull - **low risk**
 1. Jekyll build - **medium risk**, due to the fact that Jekyll performs complex
-   processing Liquid program code. A
+   processing of Liquid program code. A
    [vulnerability](https://nvd.nist.gov/vuln/detail/CVE-2018-17567) in a
    previous Jekyll version has resulted in arbitrary file reads. This risk is
    somewhat mitigated by executing Jekyll with an non-privileged user and can
@@ -258,8 +258,8 @@ The deployment script preforms the following actions:
 1. Remove old HTML directory - **no risk**
 1. Email the Jekyll logs - **low risk**, see above
 
-In summary there the execution Jekyll poses a limited risk if further
-vulnerabilities are found and the GitHub repository contains malicious input.
+In summary the Jekyll execution poses a limited risk if further vulnerabilities
+are found and the GitHub repository contains malicious input.
 
 ### Website
 
