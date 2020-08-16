@@ -170,7 +170,7 @@ The local repository needs to be cloned from the GitHub repository, such that
 `/etc/deploywebhookgithub.json`.
 
 ```bash
-sudo --user=deploy_website --set-home git -C /var/www/example.com clone git@github.com:githubuser/jekyllrepo
+sudo --user=deploy_website --set-home git -C /var/www/example.com clone --single-branch git@github.com:githubuser/jekyllrepo
 ```
 Use the `--branch ...` option to check out different branch than the default `master`
 branch.
