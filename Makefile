@@ -2,7 +2,7 @@ all:
 	@echo usefule targets: install adduser doc
 
 install:
-	sudo install --owner=root --group=root deploywebhookgithub deploy_website /usr/local/sbin
+	sudo install --owner=root --group=root bin/deploywebhookgithub bin/deploy_website /usr/local/sbin
 
 adduser:
 	sudo adduser --system --ingroup www-data --disabled-password --gecos 'User for deploying websites via github webhook' deploy_website

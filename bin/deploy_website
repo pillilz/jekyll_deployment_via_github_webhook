@@ -10,6 +10,7 @@ if [ $# -lt 2 ]; then
     echo '2. Jekyll build in local_repo and move _site to $(basename html_link)/$(date +%Y%m%d%H%M%S)_$(git parse-rev HEAD)'
     echo '3. Replace symlink html_link atomically with link to newly created destination'
     echo '4. Remove old htmldir'
+    echo '5. Send logs to committer'
     exit 1
 fi
 local_repo="$1"
@@ -72,6 +73,7 @@ mv -T "$html_link_temp" "$html_link" || error_exit "Error: mv -T $html_link_temp
 
 ### 4. Remove old htmldir
 rm -rf "$html_dir_old"
-
 echo "Deployed successfully"
+
+### 5. Send logs to committer
 sendemail "$0: Deployed successfully" "$res" "$email"
