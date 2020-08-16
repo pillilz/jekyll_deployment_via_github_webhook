@@ -15,6 +15,7 @@ fi
 local_repo="$1"
 html_link="$2"
 email="$3"
+# without LANG=en_US.UTF-8 the following error occurs: Liquid Exception: invalid byte sequence in US-ASCII in ...
 jekyll_cmd='LANG=en_US.UTF-8 bundle exec jekyll build --trace 2>&1'
 
 sendemail() {
@@ -40,6 +41,7 @@ type bundle >/dev/null || error_exit "Error: bundle not found"
 revision=$(git -C "$local_repo" rev-parse HEAD) && test -n "$revision" || error_exit "Error: git -C \"$local_repo\" rev-parse HEAD"
 timestamp=$(date +%Y%m%d%H%M%S) || error_exit "Error: date +%Y%m%d%H%M%S"
 destination_name="${timestamp}_$revision"
+# TODO disallow destination in config, always use default _site
 
 res=$(git -C "$local_repo" status --porcelain 2>&1) || error_exit "Error: git status"
 if [ -n "$res" ]; then
@@ -49,20 +51,17 @@ fi
 ### 1. Update local_repo via git pull
 res=$(git -C "$local_repo" pull -q 2>&1) && test -z "$res" || error_exit "Error: git pull failed\n$res"
 
-# use realpath to make absolute, because we need to cd into $local_repo
-destination_path=$(realpath "$html_base/$destination_name")
+### 2. Jekyll build with source local_repo and destination $(basename html_link)/$(date +%Y%m%d%H%M%S)_$(git parse-rev HEAD)
+destination_path="$html_base/$destination_name"
 if [ -e "$destination_path" ]; then
 	echo "Error: destination $destination_path exists!"
 	exit 1
 fi
 
-### 2. Jekyll build with source local_repo and destination $(basename html_link)/$(date +%Y%m%d%H%M%S)_$(git parse-rev HEAD)
-# without LANG=en_US.UTF-8 the following error occurs: Liquid Exception: invalid byte sequence in US-ASCII in ...
-res=$(cd "$local_repo" && rm -rf _site && eval $jekyll_cmd && mv _site "$destination_path") && test -d "$destination_path" || {
-	rm -rf "$destination_path"
-	error_exit "Error: jekyll build failed\n$res"
-}
+res=$(cd "$local_repo" && rm -rf _site && eval $jekyll_cmd) || error_exit "Error: jekyll build failed\n$res"
 echo "$res" >&2 # again for apache logs
+
+mv "$local_repo/_site" "$destination_path" || error_exit "Error: cannot move $local_repo/_site to $destination_path"
 
 ### 3. Replace symlink html_link atomically with link to newly created destination
 # https://stackoverflow.com/questions/307437/moving-a-directory-atomically
